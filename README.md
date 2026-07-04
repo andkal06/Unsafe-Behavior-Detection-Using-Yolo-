@@ -11,7 +11,7 @@ This project was developed as part of a computer vision internship focused on wo
 - **Architecture:** YOLOv8s
 - **Input size:** 640x640
 - **Classes:** `smoking`, `vaping`, `Phone`
-- **Training epochs:** 50
+- **Training epochs:** 120 (patience 30)
 - **Training data:** Combined and rebalanced dataset from multiple Roboflow sources (smoking/vaping detection dataset and phone-use detection dataset), with additional augmentation applied to the underrepresented `vaping` class to reduce class imbalance.
 
 ### Validation Metrics
@@ -117,6 +117,13 @@ python detect.py --weights best.pt --source video.mp4 --output result
 During video, webcam, or stream processing, the script plays an audible alert whenever one of the classes listed in `--alert-classes` is detected, subject to the cooldown period. If no custom sound file is provided, a short synthetic tone is generated automatically, so no additional setup is required for basic use.
 
 When saving output with `--output`, the same alerts are also embedded into a separate `_with_audio` video file, timed to match the moment each detection occurred in the source footage.
+
+## Datasets
+
+| Dataset | Classes | Source |
+|---|---|---|
+| Smoking & Vape Detection | smoking, vaping | livestreamdetection / smoking-vape-detection-7nvky |
+| Phone Use Detection | Phone | nakarin-samon / phone-use |
 
 ## Training Notes
 
