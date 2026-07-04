@@ -34,8 +34,9 @@ def parse_args():
     parser.add_argument("--conf", type=float, default=0.4, help="Confidence threshold")
     parser.add_argument("--imgsz", type=int, default=640, help="Ukuran input model (samain sama pas training)")
     parser.add_argument("--device", type=str, default="", help="'cpu', '0' (index GPU), kosongin buat auto")
-    parser.add_argument("--save", action="store_true", help="Simpan hasil (foto -> .jpg, video/stream -> .mp4)")
-    parser.add_argument("--output", type=str, default="output", help="Nama file output tanpa extension")
+    parser.add_argument("--save", action="store_true", help="Simpan hasil (nama default 'output')")
+    parser.add_argument("--output", type=str, default=None,
+                         help="Simpan hasil dengan nama ini (nulis --output aja udah otomatis nyimpen, --save opsional)")
     parser.add_argument("--no-alert", action="store_true", help="Matiin bunyi alert")
     parser.add_argument("--alert-classes", type=str, default="smoking,vaping,Phone",
                          help="Class yang bakal bunyi kalau kedeteksi, pisah pakai koma")
@@ -80,6 +81,54 @@ def play_alert(sound_path=None):
         print("\a", end="", flush=True)
 
 
+def mux_alert_audio(video_path, alert_timestamps, duration_sec, alert_sound_path):
+    """Tempel bunyi alert ke video hasil save, di detik-detik alert kedeteksi.
+    Pakai ffmpeg portable dari imageio-ffmpeg (auto-download sekali pas pip install,
+    nggak perlu install ffmpeg manual atau ubah PATH sama sekali)."""
+    try:
+        from pydub import AudioSegment
+        from pydub.generators import Sine
+    except ImportError:
+        print("[audio] Skip: install dulu 'pip install pydub imageio-ffmpeg' buat nempelin alert ke video.")
+        return
+
+    try:
+        import imageio_ffmpeg
+        ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        print("[audio] Skip: install dulu 'pip install imageio-ffmpeg' (ffmpeg portable otomatis, nggak perlu setup PATH).")
+        return
+
+    AudioSegment.converter = ffmpeg_bin
+
+    import subprocess
+    import os
+
+    total_ms = int(duration_sec * 1000) + 500
+    track = AudioSegment.silent(duration=total_ms, frame_rate=44100)
+
+    if alert_sound_path:
+        beep = AudioSegment.from_file(alert_sound_path)
+    else:
+        beep = Sine(1000).to_audio_segment(duration=300).apply_gain(-5)
+
+    for t in alert_timestamps:
+        track = track.overlay(beep, position=int(t * 1000))
+
+    base, ext = video_path.rsplit(".", 1)
+    audio_path = f"{base}_alert_audio.wav"
+    final_path = f"{base}_with_audio.{ext}"
+    track.export(audio_path, format="wav")
+
+    subprocess.run(
+        [ffmpeg_bin, "-y", "-i", video_path, "-i", audio_path,
+         "-c:v", "copy", "-c:a", "aac", "-shortest", final_path],
+        check=True,
+    )
+    os.remove(audio_path)
+    print(f"[audio] Video dengan alert audio disimpan ke: {final_path}")
+
+
 def run_image(model, source, args):
     results = model.predict(
         source, conf=args.conf, imgsz=args.imgsz,
@@ -101,8 +150,8 @@ def run_image(model, source, args):
     if not args.no_alert and any(name in alert_classes for name in detected_names):
         play_alert(args.alert_sound)
 
-    if args.save:
-        out_path = f"{args.output}.jpg"
+    if args.save or args.output:
+        out_path = f"{args.output or 'output'}.jpg"
         cv2.imwrite(out_path, annotated)
         print(f"Disimpan ke: {out_path}")
 
@@ -122,14 +171,17 @@ def run_stream(model, source, args):
     fps_in = cap.get(cv2.CAP_PROP_FPS) or 25
 
     writer = None
-    if args.save:
+    out_path = None
+    if args.save or args.output:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out_path = f"{args.output}.mp4"
+        out_path = f"{args.output or 'output'}.mp4"
         writer = cv2.VideoWriter(out_path, fourcc, fps_in, (width, height))
         print(f"Hasil bakal disimpan ke: {out_path}")
 
     alert_classes = set(c.strip() for c in args.alert_classes.split(","))
+    alert_timestamps = []
     last_alert_time = 0.0
+    frame_idx = 0
 
     prev_time = time.time()
     print("Jalan... tekan 'q' di window video buat keluar.")
@@ -165,6 +217,7 @@ def run_stream(model, source, args):
             print(f"[ALERT] Terdeteksi: {', '.join(sorted(set(triggered)))}")
             play_alert(args.alert_sound)
             last_alert_time = now
+            alert_timestamps.append(frame_idx / fps_in)
 
         # FPS counter
         curr_time = time.time()
@@ -183,10 +236,16 @@ def run_stream(model, source, args):
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
+        frame_idx += 1
+
     cap.release()
     if writer is not None:
         writer.release()
     cv2.destroyAllWindows()
+
+    if out_path and alert_timestamps and not args.no_alert:
+        duration_sec = frame_idx / fps_in
+        mux_alert_audio(out_path, alert_timestamps, duration_sec, args.alert_sound)
 
 
 def main():
