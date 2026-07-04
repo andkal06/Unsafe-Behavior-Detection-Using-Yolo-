@@ -11,7 +11,7 @@ This project was developed as part of a computer vision internship focused on wo
 - **Architecture:** YOLOv8s
 - **Input size:** 640x640
 - **Classes:** `smoking`, `vaping`, `Phone`
-- **Training epochs:** 120 (patience 30)
+- **Training epochs:** 50
 - **Training data:** Combined and rebalanced dataset from multiple Roboflow sources (smoking/vaping detection dataset and phone-use detection dataset), with additional augmentation applied to the underrepresented `vaping` class to reduce class imbalance.
 
 ### Validation Metrics
