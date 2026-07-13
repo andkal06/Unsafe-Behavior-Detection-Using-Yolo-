@@ -1,18 +1,3 @@
-"""
-Unsafe Behavior Detection - satu file buat semua mode
-Bisa jalan buat: foto tunggal, file video, webcam, atau RTSP stream (CCTV).
-Mode otomatis kedeteksi dari --source (bisa dipaksa manual pakai --mode).
-Ada alert bunyi otomatis kalau class tertentu (default: semua) kedeteksi.
-
-Contoh pakai:
-    python detect.py --weights best.pt --source "images (1).jpg"
-    python detect.py --weights best.pt --source video.mp4
-    python detect.py --weights best.pt --source 0
-    python detect.py --weights best.pt --source rtsp://user:pass@ip:554/stream --save
-    python detect.py --weights best.pt --source 0 --alert-classes smoking,Phone --alert-cooldown 5
-    python detect.py --weights best.pt --source 0 --no-alert
-"""
-
 import argparse
 import sys
 import time
@@ -57,9 +42,8 @@ def detect_mode(source_str, forced_mode):
     suffix = Path(source_str).suffix.lower()
     if suffix in IMAGE_EXTS:
         return "image"
-    return "stream"  # video file, RTSP, atau selain foto dianggap stream
-
-
+    return "stream"  
+    
 def init_alert_sound(sound_path):
     """Load file audio sekali di awal (bukan tiap alert, biar nggak ada delay)."""
     if not sound_path:
@@ -68,7 +52,6 @@ def init_alert_sound(sound_path):
     pygame.mixer.init()
     pygame.mixer.music.load(sound_path)
     print(f"Alert sound dimuat: {sound_path}")
-
 
 def play_alert(sound_path=None):
     if sound_path:
@@ -140,7 +123,7 @@ def run_image(model, source, args):
     boxes = results[0].boxes
     detected_names = []
     if boxes is None or len(boxes) == 0:
-        print("Nggak ada objek terdeteksi (smoking/vaping/Phone) di foto ini.")
+        print("Tidak ada objek terdeteksi (smoking/vaping/Phone) di foto ini.")
     else:
         for box in boxes:
             cls_name = model.names[int(box.cls)]
